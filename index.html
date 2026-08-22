@@ -819,12 +819,14 @@ document.getElementById('onbNextBtn').addEventListener('click', ()=>{
       inp.placeholder = String(Math.max(odo - interval, 0));
     });
   } else {
-    const lastEls = document.querySelectorAll('.onb-last');
-    const intervalEls = document.querySelectorAll('.onb-interval');
     const items = [];
     DEFAULT_CATALOG.forEach((cat, idx)=>{
-      const lastVal = parseFloat(lastEls[idx].value);
-      const intervalVal = parseFloat(intervalEls[idx].value) || cat.interval;
+      const lastInput = document.querySelector(`.onb-last[data-idx="${idx}"]`);
+      const intervalInput = document.querySelector(`.onb-interval[data-idx="${idx}"]`);
+      const lastValRaw = lastInput ? lastInput.value : '';
+      const intervalValRaw = intervalInput ? intervalInput.value : '';
+      const lastVal = parseFloat(lastValRaw);
+      const intervalVal = parseFloat(intervalValRaw) || cat.interval;
       const last = isNaN(lastVal) ? Math.max(pendingNewCar.odometer - intervalVal, 0) : lastVal;
       items.push({ id:uid('i'), icon:cat.icon, name:cat.name, interval:intervalVal, lastService:last });
     });
@@ -1584,8 +1586,11 @@ document.getElementById('saveShopBtn').addEventListener('click', async ()=>{
   const description = document.getElementById('inpShopDesc').value.trim();
   const services = [];
   document.querySelectorAll('.svc-row').forEach(row=>{
-    const n = row.querySelector('.svc-name').value.trim();
-    const p = parseFloat(row.querySelector('.svc-price').value);
+    const nameEl = row.querySelector('.svc-name');
+    const priceEl = row.querySelector('.svc-price');
+    if(!nameEl || !priceEl) return;
+    const n = nameEl.value.trim();
+    const p = parseFloat(priceEl.value);
     if(n && !isNaN(p) && p>0) services.push({ name:n, price:p });
   });
   if(!name || !area || !phone || services.length===0){ showToast('كمّل البيانات الأساسية الأول ⚠️'); return; }
@@ -1599,6 +1604,17 @@ document.getElementById('saveShopBtn').addEventListener('click', async ()=>{
   }catch(e){
     showToast('حصل خطأ في النشر، جرب تاني ⚠️');
   }
+});
+
+// ============================================================
+// GLOBAL SAFETY NET — never let an unexpected error freeze the whole app silently
+// ============================================================
+window.addEventListener('error', (e)=>{
+  console.error('Unhandled error:', e.error || e.message);
+  try{ showToast('حصل خطأ بسيط، جرب تاني ⚠️'); }catch(_){}
+});
+window.addEventListener('unhandledrejection', (e)=>{
+  console.error('Unhandled promise rejection:', e.reason);
 });
 
 // ============================================================
