@@ -257,18 +257,15 @@
   .filter-chip{flex-shrink:0; padding:9px 15px; border-radius:20px; background:var(--surface); border:1px solid var(--border); color:var(--text-dim); font-family:'Cairo',sans-serif; font-weight:700; font-size:12px; cursor:pointer; white-space:nowrap;}
   .filter-chip.active{background:var(--teal); color:#FFFFFF; border-color:var(--teal);}
 
-  .mock-map{position:relative; height:150px; border-radius:20px; overflow:hidden; margin-bottom:18px; border:1px solid var(--border);
-    background-color:#171B22;
-    background-image:
-      repeating-linear-gradient(0deg, rgba(255,255,255,0.05) 0 1px, transparent 1px 28px),
-      repeating-linear-gradient(90deg, rgba(255,255,255,0.05) 0 1px, transparent 1px 28px);
-  }
-  .mock-map::before{content:''; position:absolute; inset:0; background:radial-gradient(circle at 30% 30%, rgba(95,122,87,0.12), transparent 55%);}
-  .map-pin{position:absolute; width:26px; height:26px; margin:-26px 0 0 -13px; cursor:pointer; transition:.15s;}
-  .map-pin:active{transform:scale(1.15);}
-  .map-pin svg{filter:drop-shadow(0 3px 6px rgba(0,0,0,0.5));}
-  .map-you{position:absolute; width:14px; height:14px; margin:-7px 0 0 -7px; border-radius:50%; background:var(--teal); box-shadow:0 0 0 5px rgba(95,122,87,0.20);}
-  .map-tag{position:absolute; bottom:10px; right:12px; background:rgba(14,16,21,0.75); backdrop-filter:blur(6px); padding:5px 10px; border-radius:10px; font-size:9.5px; color:var(--text-dim); font-family:'Cairo',sans-serif; font-weight:700;}
+  .real-map{position:relative; height:190px; border-radius:20px; overflow:hidden; margin-bottom:18px; border:1px solid var(--border); background:var(--surface-2);}
+  .real-map .leaflet-container{background:var(--surface-2); font-family:'Tajawal',sans-serif;}
+  .map-fallback{height:190px; border-radius:20px; margin-bottom:18px; border:1px solid var(--border); background:var(--surface-2); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; color:var(--text-dim); text-align:center; padding:16px;}
+  .map-fallback svg{opacity:.4;}
+  .map-fallback p{font-size:11.5px; line-height:1.7; margin:0;}
+  .map-tag{position:absolute; bottom:8px; right:8px; background:rgba(255,255,255,0.9); padding:4px 9px; border-radius:9px; font-size:9px; color:var(--text-dim); font-family:'Cairo',sans-serif; font-weight:700; z-index:1000; pointer-events:none;}
+  .pin-badge{width:30px; height:30px; border-radius:50% 50% 50% 0; transform:rotate(-45deg); display:flex; align-items:center; justify-content:center; box-shadow:0 3px 8px rgba(43,42,40,0.35); border:2px solid #FFFFFF;}
+  .pin-badge span{transform:rotate(45deg); font-size:14px;}
+  .you-dot{width:16px; height:16px; border-radius:50%; background:#5F7A57; border:3px solid #FFFFFF; box-shadow:0 0 0 5px rgba(95,122,87,0.25);}
 
   .shop-card{display:flex; gap:12px; background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:14px; margin-bottom:10px; cursor:pointer; transition:transform .15s;}
   .shop-card:active{transform:scale(0.98);}
@@ -418,9 +415,10 @@
       <button class="filter-chip" data-cat="workshop">🔧 ورش صيانة</button>
       <button class="filter-chip" data-cat="carwash">🚿 غسيل عربيات</button>
     </div>
-    <div class="mock-map" id="mockMap">
-      <div class="map-you"></div>
-      <div class="map-tag">خريطة تقريبية (تجريبية)</div>
+    <div class="real-map" id="realMap" style="display:none;"></div>
+    <div class="map-fallback" id="mapFallback">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none"><path d="M3 9.5 5 4h14l2 5.5" stroke="currentColor" stroke-width="1.6"/><path d="M4 9.5v9a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-9" stroke="currentColor" stroke-width="1.6"/></svg>
+      <p>جاري تحميل الخريطة...</p>
     </div>
     <div id="marketList"></div>
   </div>
@@ -632,7 +630,7 @@
       <p class="hint">ظهورك هنا مجاني، وهيقدر أي مستخدم يشوف محلك وأسعارك</p>
       <div class="share-note">
         <span>ℹ️</span>
-        <span>بيانات المحل (الاسم، الأسعار، المنطقة، رقم الهاتف) هتبقى ظاهرة فعلاً لكل مستخدمين Car Care.</span>
+        <span>بيانات المحل (الاسم، الأسعار، المنطقة، رقم الهاتف) هتبقى ظاهرة فعلاً لكل مستخدمين Car Care، وهناخد موقعك الحالي عشان نحط المحل على الخريطة (تقدر ترفض الإذن وينشر المحل من غير موقع).</span>
       </div>
       <div class="cat-toggle">
         <div class="cat-toggle-btn sel" id="catWorkshopBtn" data-cat="workshop">
@@ -694,6 +692,8 @@
 
 </div>
 
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 // ============================================================
@@ -1149,7 +1149,10 @@ document.querySelectorAll('.navitem').forEach(btn=>{
     const fab = document.getElementById('fabBtn');
     if(currentTab === 'tab-home' || currentTab === 'tab-market'){ fab.style.display = 'flex'; }
     else { fab.style.display = 'none'; }
-    if(currentTab === 'tab-market') renderMarketList();
+    if(currentTab === 'tab-market'){
+      if(!leafletMap) initRealMap();
+      renderMarketList();
+    }
   });
 });
 
@@ -1462,25 +1465,21 @@ let viewingShopId = null;
 let svcRowCount = 0;
 let shopCatSelected = 'workshop';
 
-function hashToRange(str, min, max){
-  let h = 0;
-  for(let i=0;i<str.length;i++){ h = (h*31 + str.charCodeAt(i)) % 100000; }
-  return min + (h % (max-min));
-}
+const CAIRO_CENTER = { lat: 30.0444, lng: 31.2357 };
 
 const SEED_SHOPS = [
   { id:'seed1', name:'ورشة الأمانة', category:'workshop', area:'فيصل، الجيزة', phone:'01001234567',
     description:'خبرة أكتر من 15 سنة في صيانة كل الماركات، وقطع غيار أصلية.',
     services:[{name:'تغيير زيت', price:250},{name:'فحص كمبيوتر', price:150},{name:'صيانة فرامل', price:400}],
-    rating:4.7 },
+    rating:4.7, lat:29.9765, lng:31.1974 },
   { id:'seed2', name:'كار سبا — غسيل وتلميع', category:'carwash', area:'مدينة نصر، القاهرة', phone:'01109876543',
     description:'غسيل خارجي وداخلي، تلميع، وتلميع بالبخار.',
     services:[{name:'غسيل خارجي', price:60},{name:'غسيل كامل', price:120},{name:'تلميع بالشمع', price:300}],
-    rating:4.5 },
+    rating:4.5, lat:30.0511, lng:31.3656 },
   { id:'seed3', name:'مركز النجاح لصيانة السيارات', category:'workshop', area:'الهرم، الجيزة', phone:'01223344556',
     description:'متخصصين في الكهرباء والميكانيكا العامة.',
     services:[{name:'تغيير سيور', price:350},{name:'كشف عام', price:100}],
-    rating:4.3 },
+    rating:4.3, lat:29.9932, lng:31.1418 },
 ];
 
 async function loadShops(){
@@ -1524,28 +1523,87 @@ function filteredShops(){
   });
 }
 
-function renderMockMap(){
-  const map = document.getElementById('mockMap');
-  map.querySelectorAll('.map-pin').forEach(p=>p.remove());
-  const list = filteredShops().slice(0, 7);
+// ============================================================
+// REAL MAP — Leaflet + OpenStreetMap (free, no API key needed)
+// ============================================================
+let leafletMap = null;
+let userLocation = null; // {lat, lng} once geolocation resolves
+let mapMarkers = [];
+
+function getUserLocation(){
+  return new Promise((resolve)=>{
+    if(!navigator.geolocation){ resolve(null); return; }
+    navigator.geolocation.getCurrentPosition(
+      (pos)=> resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      ()=> resolve(null),
+      { timeout: 6000, maximumAge: 300000 }
+    );
+  });
+}
+
+function pinDivIcon(colorHex, emoji){
+  return L.divIcon({
+    className: '',
+    html: `<div class="pin-badge" style="background:${colorHex};"><span>${emoji}</span></div>`,
+    iconSize: [30,30],
+    iconAnchor: [15,28],
+    popupAnchor: [0,-26]
+  });
+}
+function youDivIcon(){
+  return L.divIcon({ className:'', html:`<div class="you-dot"></div>`, iconSize:[16,16], iconAnchor:[8,8] });
+}
+
+async function initRealMap(){
+  const container = document.getElementById('realMap');
+  const fallback = document.getElementById('mapFallback');
+  if(typeof L === 'undefined'){
+    fallback.innerHTML = `<svg width="32" height="32" viewBox="0 0 24 24" fill="none"><path d="M3 9.5 5 4h14l2 5.5" stroke="currentColor" stroke-width="1.6"/></svg><p>الخريطة مش متاحة دلوقتي، بس تقدر تشوف المحلات في القائمة تحت</p>`;
+    return;
+  }
+  try{
+    userLocation = await getUserLocation();
+    const center = userLocation || CAIRO_CENTER;
+    container.style.display = 'block';
+    fallback.style.display = 'none';
+    leafletMap = L.map(container, { zoomControl:false, attributionControl:true }).setView([center.lat, center.lng], userLocation ? 13 : 11);
+    L.control.zoom({ position:'bottomleft' }).addTo(leafletMap);
+    setTimeout(()=> leafletMap.invalidateSize(), 100);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap',
+      maxZoom: 19
+    }).addTo(leafletMap);
+    if(userLocation){
+      L.marker([userLocation.lat, userLocation.lng], { icon: youDivIcon() }).addTo(leafletMap).bindPopup('موقعك الحالي');
+    }
+    renderMapMarkers();
+  }catch(e){
+    console.error('Map init failed:', e);
+    fallback.style.display = 'flex';
+    container.style.display = 'none';
+    fallback.innerHTML = `<p>الخريطة مش متاحة دلوقتي، بس تقدر تشوف المحلات في القائمة تحت</p>`;
+  }
+}
+
+function renderMapMarkers(){
+  if(!leafletMap) return;
+  mapMarkers.forEach(m=> leafletMap.removeLayer(m));
+  mapMarkers = [];
+  const list = filteredShops().filter(s=> s.lat && s.lng);
   list.forEach(s=>{
-    const x = hashToRange(s.id+'x', 12, 88);
-    const y = hashToRange(s.id+'y', 15, 85);
-    const pin = document.createElement('div');
-    pin.className = 'map-pin';
-    pin.style.left = x + '%';
-    pin.style.top = y + '%';
     const color = s.category === 'carwash' ? '#C98A46' : '#5F7A57';
-    pin.innerHTML = `<svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M12 22s7-6.8 7-12.2A7 7 0 0 0 5 9.8C5 15.2 12 22 12 22z" fill="${color}"/><circle cx="12" cy="9.5" r="2.6" fill="#0E1015"/></svg>`;
-    pin.addEventListener('click', ()=> openShopProfile(s.id));
-    map.appendChild(pin);
+    const emoji = s.category === 'carwash' ? '🚿' : '🔧';
+    const marker = L.marker([s.lat, s.lng], { icon: pinDivIcon(color, emoji) }).addTo(leafletMap);
+    marker.bindPopup(`<b>${s.name}</b><br>${s.area}`);
+    marker.on('click', ()=> openShopProfile(s.id));
+    mapMarkers.push(marker);
   });
 }
 
 function renderMarketList(){
   const list = filteredShops();
   document.getElementById('marketCount').textContent = `${list.length} محل`;
-  renderMockMap();
+  if(leafletMap) renderMapMarkers();
   const wrap = document.getElementById('marketList');
   wrap.innerHTML = '';
   if(list.length === 0){
@@ -1683,16 +1741,18 @@ document.getElementById('saveShopBtn').addEventListener('click', async ()=>{
   });
   if(!name || !area || !phone || services.length===0){ showToast('كمّل البيانات الأساسية الأول ⚠️'); return; }
   if(!sb){ showToast('مفيش اتصال بالسيرفر دلوقتي، جرب تاني بعدين ⚠️'); return; }
-  const shop = { id: uid('shop'), name, category: shopCatSelected, area, phone, description, services, rating: 4.5 };
   const saveBtn = document.getElementById('saveShopBtn');
-  saveBtn.disabled = true; saveBtn.textContent = 'جاري النشر...';
+  saveBtn.disabled = true; saveBtn.textContent = 'بناخد موقعك الحالي...';
+  const loc = await getUserLocation();
+  const shop = { id: uid('shop'), name, category: shopCatSelected, area, phone, description, services, rating: 4.5, lat: loc ? loc.lat : null, lng: loc ? loc.lng : null };
+  saveBtn.textContent = 'جاري النشر...';
   try{
     const { error } = await sb.from('shops').insert([shop]);
     if(error) throw error;
     shops.unshift(shop);
     renderMarketList();
     addShopOverlay.classList.remove('show');
-    showToast('اتنشر محلك في Car Care، وظاهر دلوقتي لكل المستخدمين 🎉');
+    showToast(loc ? 'اتنشر محلك على الخريطة، وظاهر لكل المستخدمين 🎉' : 'اتنشر محلك (من غير موقع على الخريطة) 🎉');
   }catch(e){
     console.error('Supabase insert failed:', e);
     showToast('حصل خطأ في النشر، جرب تاني ⚠️');
