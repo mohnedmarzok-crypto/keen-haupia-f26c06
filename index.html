@@ -461,7 +461,7 @@
       <div class="about-box">
         Car Care v1.2 — تطبيق تجريبي لمتابعة صيانة العربية.<br>
         بياناتك (عرباتك، سجل الصيانة) متخزنة على المتصفح ده بس، ومش هتتمسح حتى لو قفلت التطبيق. لو مسحت بيانات المتصفح، أو بدّلت جهاز، خد نسخة احتياطية من الإعدادات الأول.<br>
-        محلات "المحلات" حاليًا ظاهرة على المتصفح ده بس (مرحلة تجريبية) — لسه مش متشاركة بين كل المستخدمين، ده جاي في تحديث قادم لما نربط سيرفر حقيقي.<br>
+        محلات "المحلات" مشتركة فعلاً بين كل مستخدمين Car Care عبر سيرفر حقيقي — أي محل تضيفه هيشوفه أي حد يفتح التطبيق.<br>
         التنبيهات بتشتغل لما تفتح التطبيق (مش إشعارات بالخلفية دايمًا، لأن ده محتاج سيرفر مخصص).
       </div>
     </div>
@@ -632,7 +632,7 @@
       <p class="hint">ظهورك هنا مجاني، وهيقدر أي مستخدم يشوف محلك وأسعارك</p>
       <div class="share-note">
         <span>ℹ️</span>
-        <span>دلوقتي بيانات المحل بتتخزن على المتصفح ده بس (نسخة تجريبية). لما نربط سيرفر حقيقي، هتبقى ظاهرة لكل المستخدمين فعلاً.</span>
+        <span>بيانات المحل (الاسم، الأسعار، المنطقة، رقم الهاتف) هتبقى ظاهرة فعلاً لكل مستخدمين Car Care.</span>
       </div>
       <div class="cat-toggle">
         <div class="cat-toggle-btn sel" id="catWorkshopBtn" data-cat="workshop">
@@ -694,7 +694,27 @@
 
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
+// ============================================================
+// SUPABASE — real shared backend for the marketplace directory
+// (personal car data stays in localStorage; only "shops" are shared)
+// Defensive: if the CDN fails to load for any reason, the rest of
+// the app must keep working — marketplace just falls back to local seed data.
+// ============================================================
+const SUPABASE_URL = 'https://buhbrthrhmvajmynirlb.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_O9KenmPSiIkbdq13P_Is6A_ZB8SP7TP';
+let sb = null;
+try{
+  if(typeof supabase !== 'undefined' && supabase.createClient){
+    sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  } else {
+    console.warn('Supabase library did not load — marketplace will use local fallback data only.');
+  }
+}catch(e){
+  console.error('Supabase client init failed:', e);
+}
+
 // ============================================================
 // STORAGE ENGINE — works standalone in any browser (no Claude runtime needed)
 // Mimics the get/set/delete/list shape so the rest of the app code
@@ -1464,26 +1484,23 @@ const SEED_SHOPS = [
 ];
 
 async function loadShops(){
+  if(!sb){ shops = SEED_SHOPS.slice(); renderMarketList(); return; }
   try{
-    const res = await storage.list('shop:', true);
-    const keys = (res && res.keys) ? res.keys : [];
-    if(keys.length === 0){
-      // seed the shared directory once so the marketplace isn't empty
+    const { data, error } = await sb.from('shops').select('*').order('created_at', { ascending: false });
+    if(error) throw error;
+    if(data && data.length > 0){
+      shops = data;
+    } else {
+      // table is empty — seed it once so the marketplace isn't empty for anyone
       for(const s of SEED_SHOPS){
-        try{ await storage.set(`shop:${s.id}`, JSON.stringify(s), true); }catch(e){}
+        try{ await sb.from('shops').insert([s]); }catch(e){}
       }
       shops = SEED_SHOPS.slice();
-    } else {
-      const loaded = [];
-      for(const k of keys){
-        try{
-          const r = await storage.get(k, true);
-          if(r && r.value) loaded.push(JSON.parse(r.value));
-        }catch(e){}
-      }
-      shops = loaded;
     }
-  }catch(e){ shops = SEED_SHOPS.slice(); }
+  }catch(e){
+    console.error('Supabase load failed, falling back to local seed data:', e);
+    shops = SEED_SHOPS.slice();
+  }
   renderMarketList();
 }
 
@@ -1665,15 +1682,22 @@ document.getElementById('saveShopBtn').addEventListener('click', async ()=>{
     if(n && !isNaN(p) && p>0) services.push({ name:n, price:p });
   });
   if(!name || !area || !phone || services.length===0){ showToast('كمّل البيانات الأساسية الأول ⚠️'); return; }
+  if(!sb){ showToast('مفيش اتصال بالسيرفر دلوقتي، جرب تاني بعدين ⚠️'); return; }
   const shop = { id: uid('shop'), name, category: shopCatSelected, area, phone, description, services, rating: 4.5 };
+  const saveBtn = document.getElementById('saveShopBtn');
+  saveBtn.disabled = true; saveBtn.textContent = 'جاري النشر...';
   try{
-    await storage.set(`shop:${shop.id}`, JSON.stringify(shop), true);
-    shops.push(shop);
+    const { error } = await sb.from('shops').insert([shop]);
+    if(error) throw error;
+    shops.unshift(shop);
     renderMarketList();
     addShopOverlay.classList.remove('show');
-    showToast('اتنشر محلك في Car Care 🎉');
+    showToast('اتنشر محلك في Car Care، وظاهر دلوقتي لكل المستخدمين 🎉');
   }catch(e){
+    console.error('Supabase insert failed:', e);
     showToast('حصل خطأ في النشر، جرب تاني ⚠️');
+  } finally {
+    saveBtn.disabled = false; saveBtn.textContent = 'نشر المحل ✓';
   }
 });
 
