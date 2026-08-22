@@ -1,13 +1,13 @@
 {
-  "name": "صيانتي — متابعة صيانة العربية",
-  "short_name": "صيانتي",
-  "description": "تابع صيانة عربيتك: زيت، فلاتر، كاوتش، سيور، وكل حاجة محتاجة متابعة دورية.",
+  "name": "Car Care — روتين العناية بعربيتك",
+  "short_name": "Car Care",
+  "description": "روتين عناية دوري لعربيتك: زيت، فلاتر، كاوتش، سيور، وكل حاجة محتاجة متابعة.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0E1015",
-  "theme_color": "#0E1015",
+  "background_color": "#FBF7F2",
+  "theme_color": "#5F7A57",
   "dir": "rtl",
   "lang": "ar",
   "icons": [
