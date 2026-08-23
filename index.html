@@ -821,6 +821,7 @@ async function loadState(){
     const res = await storage.get('car-state-v2', false);
     if(res && res.value){
       state = JSON.parse(res.value);
+      document.getElementById('onbOverlay').style.display = 'none';
       renderAll();
       registerSW();
       return;
@@ -1147,7 +1148,19 @@ function renderSettings(){
 }
 
 function renderAll(){
-  if(!activeCar()){ startOnboarding(); return; }
+  if(!activeCar()){
+    const existingIds = Object.keys(state.cars || {});
+    if(existingIds.length > 0){
+      // activeCarId got out of sync with an existing car — self-heal instead
+      // of creating a brand new duplicate car.
+      console.warn('activeCarId was out of sync; recovering to an existing car.');
+      state.activeCarId = existingIds[0];
+      saveState();
+    } else {
+      startOnboarding();
+      return;
+    }
+  }
   renderHome();
   renderHistory();
   renderStats();
