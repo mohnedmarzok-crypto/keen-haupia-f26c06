@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sayanty-cache-v1';
+const CACHE_NAME = 'car-care-cache-v2';
 const ASSETS = [
   './',
   './index.html',
@@ -23,17 +23,20 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
+// Network-first strategy: always try to get the freshest version from the
+// server first. Only fall back to the cached copy if the network request
+// fails (e.g. offline). This prevents the app from ever getting "stuck"
+// on an old cached version after a new deploy.
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached;
-      return fetch(event.request).then((res) => {
+    fetch(event.request)
+      .then((res) => {
         const resClone = res.clone();
         caches.open(CACHE_NAME).then((cache) => cache.put(event.request, resClone)).catch(()=>{});
         return res;
-      }).catch(() => cached);
-    })
+      })
+      .catch(() => caches.match(event.request))
   );
 });
 
