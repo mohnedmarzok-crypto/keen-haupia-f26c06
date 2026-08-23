@@ -304,6 +304,14 @@
   .svc-row input.price-in{flex:0 0 90px;}
   .svc-remove{width:38px;height:38px;flex-shrink:0;border-radius:11px; background:var(--surface-2); border:1px solid var(--border); color:var(--coral); display:flex; align-items:center; justify-content:center; cursor:pointer;}
   .share-note{display:flex; gap:8px; background:var(--amber-dim); color:var(--amber); padding:11px 13px; border-radius:13px; font-size:11px; line-height:1.7; margin-bottom:16px;}
+
+  .pick-map-wrap{position:relative; height:170px; border-radius:16px; overflow:hidden; border:1px solid var(--border); background:var(--surface-2);}
+  .pick-map{width:100%; height:100%;}
+  .pick-map-fallback{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:var(--text-dim); font-size:11.5px; text-align:center; padding:16px;}
+  .pick-map-actions{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:8px;}
+  .pick-map-hint{font-size:10.5px; color:var(--text-dim-2);}
+  .pick-locate-btn{flex-shrink:0; background:var(--teal-dim); color:var(--teal); border:none; padding:7px 12px; border-radius:10px; font-family:'Cairo',sans-serif; font-weight:700; font-size:11px; cursor:pointer;}
+  .picked-pin-icon{width:28px; height:28px; border-radius:50% 50% 50% 0; transform:rotate(-45deg); background:#C97A78; border:2px solid #FFFFFF; box-shadow:0 3px 8px rgba(43,42,40,0.35);}
 </style>
 </head>
 <body>
@@ -630,7 +638,7 @@
       <p class="hint">ظهورك هنا مجاني، وهيقدر أي مستخدم يشوف محلك وأسعارك</p>
       <div class="share-note">
         <span>ℹ️</span>
-        <span>بيانات المحل (الاسم، الأسعار، المنطقة، رقم الهاتف) هتبقى ظاهرة فعلاً لكل مستخدمين Car Care، وهناخد موقعك الحالي عشان نحط المحل على الخريطة (تقدر ترفض الإذن وينشر المحل من غير موقع).</span>
+        <span>بيانات المحل (الاسم، الأسعار، المنطقة، رقم الهاتف) هتبقى ظاهرة فعلاً لكل مستخدمين Car Care، بما فيها المكان اللي هتحدده على الخريطة تحت.</span>
       </div>
       <div class="cat-toggle">
         <div class="cat-toggle-btn sel" id="catWorkshopBtn" data-cat="workshop">
@@ -648,6 +656,17 @@
         <div class="field"><label>رقم الهاتف</label><input type="tel" id="inpShopPhone" placeholder="01xxxxxxxxx"></div>
       </div>
       <div class="field"><label>وصف مختصر (اختياري)</label><input type="text" id="inpShopDesc" placeholder="مثلاً: خبرة 15 سنة، صيانة كل الماركات"></div>
+      <div class="field">
+        <label>حدد مكان المحل على الخريطة</label>
+        <div class="pick-map-wrap">
+          <div id="pickMap" class="pick-map"></div>
+          <div id="pickMapFallback" class="pick-map-fallback" style="display:none;">الخريطة مش متاحة دلوقتي</div>
+        </div>
+        <div class="pick-map-actions">
+          <span class="pick-map-hint" id="pickMapHint">دوس على الخريطة عشان تحدد المكان بنفسك</span>
+          <button type="button" class="pick-locate-btn" id="pickLocateBtn">📍 موقعي الحالي</button>
+        </div>
+      </div>
       <div class="field">
         <label>قائمة الخدمات والأسعار</label>
         <div id="svcRowsWrap"></div>
@@ -1715,6 +1734,7 @@ function openAddShopSheet(){
   document.getElementById('catCarwashBtn').classList.remove('sel');
   buildSvcRow();
   addShopOverlay.classList.add('show');
+  setTimeout(()=> initPickMap(), 250);
 }
 [document.getElementById('catWorkshopBtn'), document.getElementById('catCarwashBtn')].forEach(btn=>{
   btn.addEventListener('click', ()=>{
@@ -1724,6 +1744,49 @@ function openAddShopSheet(){
   });
 });
 addShopOverlay.addEventListener('click', (e)=>{ if(e.target===addShopOverlay) addShopOverlay.classList.remove('show'); });
+
+// ---- manual location picker map (inside the add-shop form) ----
+let pickMap = null;
+let pickMarker = null;
+let pickedLocation = null; // {lat,lng} chosen by the shop owner
+function setPickedLocation(lat, lng){
+  pickedLocation = { lat, lng };
+  if(pickMarker){ pickMap.removeLayer(pickMarker); }
+  pickMarker = L.marker([lat,lng], { icon: L.divIcon({ className:'', html:'<div class="picked-pin-icon"></div>', iconSize:[28,28], iconAnchor:[14,26] }) }).addTo(pickMap);
+  document.getElementById('pickMapHint').textContent = 'المكان اتحدد ✓ — تقدر تدوس تاني تغيّره';
+}
+async function initPickMap(){
+  const container = document.getElementById('pickMap');
+  const fallback = document.getElementById('pickMapFallback');
+  if(typeof L === 'undefined'){
+    fallback.style.display = 'flex';
+    container.style.display = 'none';
+    return;
+  }
+  fallback.style.display = 'none';
+  container.style.display = 'block';
+  if(pickMap){ pickMap.remove(); pickMap = null; pickMarker = null; pickedLocation = null; }
+  try{
+    const loc = await getUserLocation();
+    const center = loc || CAIRO_CENTER;
+    pickMap = L.map(container, { zoomControl:false }).setView([center.lat, center.lng], loc ? 14 : 11);
+    L.control.zoom({ position:'bottomleft' }).addTo(pickMap);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'&copy; OpenStreetMap', maxZoom:19 }).addTo(pickMap);
+    setTimeout(()=> pickMap.invalidateSize(), 100);
+    if(loc){ setPickedLocation(loc.lat, loc.lng); document.getElementById('pickMapHint').textContent = 'حطينا المكان على موقعك الحالي — دوس على الخريطة لو غلط'; }
+    pickMap.on('click', (e)=> setPickedLocation(e.latlng.lat, e.latlng.lng));
+  }catch(e){
+    console.error('Pick map init failed:', e);
+    fallback.style.display = 'flex';
+    container.style.display = 'none';
+  }
+}
+document.getElementById('pickLocateBtn').addEventListener('click', async ()=>{
+  const loc = await getUserLocation();
+  if(!loc){ showToast('مقدرش أوصل لموقعك، حاول تسمح بإذن الموقع ⚠️'); return; }
+  if(pickMap){ pickMap.setView([loc.lat, loc.lng], 15); }
+  setPickedLocation(loc.lat, loc.lng);
+});
 
 document.getElementById('saveShopBtn').addEventListener('click', async ()=>{
   const name = document.getElementById('inpShopName').value.trim();
@@ -1742,17 +1805,15 @@ document.getElementById('saveShopBtn').addEventListener('click', async ()=>{
   if(!name || !area || !phone || services.length===0){ showToast('كمّل البيانات الأساسية الأول ⚠️'); return; }
   if(!sb){ showToast('مفيش اتصال بالسيرفر دلوقتي، جرب تاني بعدين ⚠️'); return; }
   const saveBtn = document.getElementById('saveShopBtn');
-  saveBtn.disabled = true; saveBtn.textContent = 'بناخد موقعك الحالي...';
-  const loc = await getUserLocation();
-  const shop = { id: uid('shop'), name, category: shopCatSelected, area, phone, description, services, rating: 4.5, lat: loc ? loc.lat : null, lng: loc ? loc.lng : null };
-  saveBtn.textContent = 'جاري النشر...';
+  saveBtn.disabled = true; saveBtn.textContent = 'جاري النشر...';
+  const shop = { id: uid('shop'), name, category: shopCatSelected, area, phone, description, services, rating: 4.5, lat: pickedLocation ? pickedLocation.lat : null, lng: pickedLocation ? pickedLocation.lng : null };
   try{
     const { error } = await sb.from('shops').insert([shop]);
     if(error) throw error;
     shops.unshift(shop);
     renderMarketList();
     addShopOverlay.classList.remove('show');
-    showToast(loc ? 'اتنشر محلك على الخريطة، وظاهر لكل المستخدمين 🎉' : 'اتنشر محلك (من غير موقع على الخريطة) 🎉');
+    showToast(pickedLocation ? 'اتنشر محلك على الخريطة، وظاهر لكل المستخدمين 🎉' : 'اتنشر محلك (من غير موقع على الخريطة) 🎉');
   }catch(e){
     console.error('Supabase insert failed:', e);
     showToast('حصل خطأ في النشر، جرب تاني ⚠️');
