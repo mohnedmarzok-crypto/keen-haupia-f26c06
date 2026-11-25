@@ -1,0 +1,27 @@
+
+[
+  {
+    "relation": [
+      "delegate_permission/common.get_login_creds"
+    ],
+    "target": {
+      "namespace": "web",
+      "site": "https://keen-haupia-f26c06.mohnedmarzok.workers.dev"
+    }
+  },
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls",
+      "delegate_permission/common.get_login_creds"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "carcare.com",
+      "sha256_cert_fingerprints": [
+        "E0:FC:BF:3B:54:BB:48:89:80:BF:9F:B4:C8:0B:E3:B3:F2:08:D2:1F:F4:EA:14:52:FB:8E:26:D5:B9:CF:46",
+        "2D:F7:7C:E8:B1:9A:00:D7:70:31:DB:96:A7:D8:7C:80:F2:21:23:2D:B2:BF:B7:0F:94:F7:CE:95:8A:5C:11",
+        "8D:22:D1:11:F1:49:B3:AD:9C:3C:0E:1E:98:A5:23:5F:54:58:6D:EF:CA:78:BE:CF:45:B9:7A:16:88:C3:A8"
+      ]
+    }
+  }
+]
